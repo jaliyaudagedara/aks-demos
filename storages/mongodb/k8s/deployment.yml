@@ -1,0 +1,125 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: demo-mongodb
+
+---
+
+kind: StorageClass
+apiVersion: storage.k8s.io/v1
+metadata:
+  name: sc-azurefile-mongo
+provisioner: file.csi.azure.com # replace with "kubernetes.io/azure-file" if aks version is less than 1.21
+allowVolumeExpansion: true
+mountOptions:
+  - dir_mode=0777
+  - file_mode=0777
+  - uid=0
+  - gid=0
+  - mfsymlinks
+  - cache=strict
+  - actimeo=30
+parameters:
+  skuName: Standard_LRS
+  location: eastus2
+
+---
+
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: mongo
+  namespace: demo-mongodb
+spec:
+  selector:
+    matchLabels:
+      app: mongodb
+  serviceName: mongodb
+  replicas: 3
+  template:
+    metadata:
+      labels:
+        app: mongodb
+    spec:
+      terminationGracePeriodSeconds: 10
+      containers:
+        - name: mongodb
+          image: mongo:latest
+          command:
+            - mongod
+            - "--bind_ip_all"
+            - "--replSet"
+            - rs0
+          ports:
+            - containerPort: 27017
+          volumeMounts:
+            - name: vol-azurefile-mongo
+              mountPath: /data/db
+  volumeClaimTemplates:
+    - metadata:
+        name: vol-azurefile-mongo
+      spec:
+        storageClassName: sc-azurefile
+        accessModes:
+          - ReadWriteOnce
+        resources:
+          requests:
+            storage: 1Gi
+
+---
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: mongodb
+  namespace: demo-mongodb
+spec:
+  clusterIP: None
+  ports:
+    - name: tcp
+      port: 27017
+      protocol: TCP
+  selector:
+    app: mongodb
+
+---
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api-bridge-mongodb
+  namespace: demo-mongodb
+spec:
+  selector:
+    matchLabels:
+      app: api-bridge-mongodb
+  template:
+    metadata:
+      labels:
+        app: api-bridge-mongodb
+    spec:
+      containers:
+        - name: api-bridge-mongodb
+          image: myacr.azurecr.io/demo/mongodb/api:dev
+          imagePullPolicy: Always
+          env:
+            - name: CustomersDatabase__ConnectionString
+              value: mongodb://mongo-0.mongodb:27017,mongo-1.mongodb:27017,mongo-2.mongodb:27017?replicaSet=rs0
+
+---
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: api-bridge-mongodb
+  namespace: demo-mongodb
+spec:
+  type: LoadBalancer
+  ports:
+    - port: 5051
+      targetPort: 80
+      protocol: TCP
+  selector:
+    app: api-bridge-mongodb
+    
+---
