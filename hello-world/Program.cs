@@ -20,11 +20,13 @@ if (app.Environment.IsDevelopment())
 
 app.UseHttpsRedirection();
 
-app.MapGet("/", (JsonSerializerOptions jsonSerializerOptions) =>
+app.MapGet("/", (IConfiguration configuration, JsonSerializerOptions jsonSerializerOptions) =>
 {
+    string? serviceName = configuration.GetValue<string>("ServiceName");
+
     HelloWorldMessage helloWorldMessage = new()
     {
-        Message = "Hello World!",
+        Message = string.IsNullOrEmpty(serviceName) ? "Hello World!" : $"Hello World from {serviceName}!",
         OSDescription = System.Runtime.InteropServices.RuntimeInformation.OSDescription,
         FrameworkDescription = System.Runtime.InteropServices.RuntimeInformation.FrameworkDescription,
         HostName = Dns.GetHostName()
@@ -35,7 +37,28 @@ app.MapGet("/", (JsonSerializerOptions jsonSerializerOptions) =>
 .WithName("HelloWorld")
 .WithOpenApi();
 
+app.MapGet("/Fibonacci", (int number) =>
+{
+    return Fibonacci(number);
+})
+.WithName("GetFibonacciNumber")
+.WithOpenApi();
+
 app.Run();
+
+int Fibonacci(int n)
+{
+    if (n == 0)
+    {
+        return 0;
+    }
+    else if (n == 1)
+    {
+        return 1;
+    }
+
+    return Fibonacci(n - 1) + Fibonacci(n - 2);
+}
 
 internal record HelloWorldMessage()
 {
