@@ -37,7 +37,7 @@ app.MapGet("/", (IConfiguration configuration, JsonSerializerOptions jsonSeriali
 .WithName("HelloWorld")
 .WithOpenApi();
 
-app.MapGet("/Fibonacci", (int number) =>
+app.MapGet("/fibonacci", (int number) =>
 {
     return Fibonacci(number);
 })

@@ -2,32 +2,75 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   labels:
-    app: hello-world-app
-  name: hello-world-app
+    app: customer-service
+  name: customer-service
 spec:
-  replicas: 3
+  replicas: 1
   selector:
     matchLabels:
-      app: hello-world-app
+      app: customer-service
   template:
     metadata:
       labels:
-        app: hello-world-app
+        app: customer-service
     spec:
       containers:
-        - name: hello-world-app
+        - name: customer-service
           image: ravana.azurecr.io/aspnetcore/hello-world/api:latest
           imagePullPolicy: Always
+          env:
+            - name: ServiceName
+              value: "Customer Service"
 
 ---
 
 apiVersion: v1
 kind: Service
 metadata:
-  name: hello-world-app
+  name: customer-service
 spec:
   selector:
-    app: hello-world-app
+    app: customer-service
+  ports:
+  - protocol: TCP
+    port: 80
+    targetPort: 80
+
+---
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: order-service
+  name: order-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: order-service
+  template:
+    metadata:
+      labels:
+        app: order-service
+    spec:
+      containers:
+        - name: order-service
+          image: ravana.azurecr.io/aspnetcore/hello-world/api:latest
+          imagePullPolicy: Always
+          env:
+            - name: ServiceName
+              value: "Order Service"
+
+---
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: order-service
+spec:
+  selector:
+    app: order-service
   ports:
   - protocol: TCP
     port: 80
@@ -38,17 +81,25 @@ spec:
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: hello-world-app
+  name: application-ingress
   annotations:
     kubernetes.io/ingress.class: azure/application-gateway
+    appgw.ingress.kubernetes.io/backend-path-prefix: "/"
 spec:
   rules:
   - http:
       paths:
-      - path: /
+      - path: /api/customers/
+        pathType: Prefix
         backend:
           service:
-            name: hello-world-app
+            name: customer-service
             port:
               number: 80
-        pathType: Exact
+      - path: /api/orders/
+        pathType: Prefix
+        backend:
+          service:
+            name: order-service
+            port:
+              number: 80
